@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Role check: Since roles are in the 'users' collection, we use get()
+    function getUserRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
+    function isTeacher() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'teacher';
+    }
+
+    // USERS
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.uid == request.auth.uid &&
+               data.role in ['teacher', 'student'] &&
+               data.createdAt is timestamp;
+      }
+
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && userId == request.auth.uid && isValidUser(incoming());
+      allow update: if isSignedIn() && userId == request.auth.uid && 
+                   incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'voiceProfileId']) &&
+                   incoming().uid == existing().uid &&
+                   incoming().role == existing().role;
+    }
+
+    // CLASSROOMS
+    match /classrooms/{classroomId} {
+      function isValidClassroom(data) {
+        return isValidId(data.id) &&
+               data.teacherId == request.auth.uid &&
+               data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+               data.createdAt is timestamp;
+      }
+
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); // Queries must filter by teacherId or rely on enrollment subcollection
+
+      allow create: if isTeacher() && classroomId == incoming().id && isValidClassroom(incoming());
+      allow update: if isTeacher() && existing().teacherId == request.auth.uid && 
+                   incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description']) &&
+                   incoming().teacherId == existing().teacherId;
+      allow delete: if isTeacher() && existing().teacherId == request.auth.uid;
+
+      // ENROLLMENT
+      match /students/{studentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && studentId == request.auth.uid;
+        allow delete: if isSignedIn() && (studentId == request.auth.uid || get(/databases/$(database)/documents/classrooms/$(classroomId)).data.teacherId == request.auth.uid);
+      }
+
+      // NOTES
+      match /notes/{noteId} {
+        function isValidNote(data) {
+          return isValidId(data.id) &&
+                 data.classroomId == classroomId &&
+                 data.teacherId == request.auth.uid &&
+                 data.title is string && data.title.size() > 0 &&
+                 data.date is timestamp;
+        }
+
+        function isEnrolled() {
+          return exists(/databases/$(database)/documents/classrooms/$(classroomId)/students/$(request.auth.uid));
+        }
+
+        function canReadNote() {
+          return isSignedIn() && (
+            existing().teacherId == request.auth.uid || isEnrolled()
+          );
+        }
+
+        allow get, list: if canReadNote();
+        allow create: if isTeacher() && existing() == null && incoming().teacherId == request.auth.uid && isValidNote(incoming());
+        allow update: if isTeacher() && existing().teacherId == request.auth.uid &&
+                     incoming().diff(existing()).affectedKeys().hasAny(['content', 'summary', 'transcript', 'title', 'updatedAt']) &&
+                     incoming().teacherId == existing().teacherId;
+        allow delete: if isTeacher() && existing().teacherId == request.auth.uid;
+      }
+    }
+  }
+}

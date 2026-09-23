@@ -1,0 +1,6 @@
+{
+  "name": "NoteAi",
+  "description": "An AI-powered note-taking application that transcribes, organizes, and summarizes lectures efficiently with noise-filtering technology.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["AI Transcription", "Lecture Summarization", "Role-based Classroom Management"]
+}

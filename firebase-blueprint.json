@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access control.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "role": { "type": "string", "enum": ["teacher", "student"] },
+        "displayName": { "type": "string" },
+        "voiceProfileId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "role", "createdAt"]
+    },
+    "Classroom": {
+      "title": "Classroom",
+      "description": "A group of students led by a teacher.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "inviteCode": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "teacherId", "inviteCode", "createdAt"]
+    },
+    "Note": {
+      "title": "Lecture Note",
+      "description": "AI-generated notes and summary from a lecture.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "classroomId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "summary": { "type": "string" },
+        "transcript": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "classroomId", "teacherId", "title", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/classrooms/{classroomId}": {
+      "schema": "Classroom",
+      "description": "Classroom metadata."
+    },
+    "/classrooms/{classroomId}/notes/{noteId}": {
+      "schema": "Note",
+      "description": "Notes for a specific classroom."
+    },
+    "/classrooms/{classroomId}/students/{studentId}": {
+      "schema": { "type": "object", "properties": { "enrolledAt": { "type": "string" } } },
+      "description": "Students enrolled in a classroom."
+    }
+  }
+}
